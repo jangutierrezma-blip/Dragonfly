@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carrera de Dragonfly</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<style>
+:root{--bg:#0a0806;--fg:#f5ece3;--mut:#b8a899;--card:#17110c;--line:#3d2b1b;--acc:#ff8a2b;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;align-items:center}
+h1{font:1rem/1.5 "Press Start 2P",monospace;color:#ffb066;text-shadow:3px 3px 0 #7a3516;margin:14px 12px 4px;text-align:center}
+.wrap{position:relative;width:100%;max-width:400px;margin:8px auto}
+canvas{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:10px;touch-action:none;background:#2a1238}
+#ov{position:absolute;inset:0;background:#0a0806d9;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px}
+#ov[hidden]{display:none}
+#ov h2{font:.9rem/1.5 "Press Start 2P",monospace;color:#ffb066;margin:0 0 12px}
+#ov p{margin:6px 0;color:var(--mut);max-width:34ch;font:.62rem/1.9 "Press Start 2P",monospace}
+button{font:.75rem "Press Start 2P",monospace;border:0;background:var(--acc);color:#1a0e04;padding:14px 22px;border-radius:0;box-shadow:0 5px 0 #7a3516;margin-top:16px;cursor:pointer}
+button:active{transform:translateY(3px);box-shadow:0 2px 0 #7a3516}
+button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.note{color:var(--mut);font:.55rem/1.8 "Press Start 2P",monospace;text-align:center;margin:4px 14px 20px;max-width:46ch}
+</style>
+</head>
+<body>
+<h1>Carrera de Dragonfly</h1>
+<div class="wrap">
+<canvas id="g" width="360" height="560" role="img" aria-label="Juego: la sonda desciende por las capas de Titán esquivando obstáculos"></canvas>
+<div id="ov"><h2 id="ot">Carrera de Dragonfly</h2><p id="op">Desciende por las capas de Titán hasta aterrizar. Arrastra el dedo para esquivar y recoge moléculas.</p><button id="go">Jugar</button></div>
+</div>
+<p class="note">Cada capa, cada obstáculo y cada molécula son reales de la atmósfera de Titán.</p>
+<script>
+const $=s=>document.querySelector(s),C=$('#g'),x=C.getContext('2d'),W=360,H=560,PY=H-110;
+const LA=[
+{n:'Termosfera',c:'#2a1238',o:'#ffe14a',ob:'Partículas energéticas',f:'Termosfera: la luz ultravioleta rompe el N₂ y el CH₄. Aquí empieza la bruma.',s:['HCN','N⁺','CH₃⁺']},
+{n:'Mesosfera',c:'#4d1f2c',o:'#c77dff',ob:'Bruma desprendida',f:'Mesosfera: una capa de bruma separada, a unos 450–500 km.',s:['HC₃N','C₂H₂','HCN']},
+{n:'Estratosfera',c:'#7a3516',o:'#e8a35c',ob:'Nubes de tholins',f:'Estratosfera: la capa principal de bruma naranja, entre ≈100 y 210 km.',s:['C₂H₆','C₄H₂','C₆H₆']},
+{n:'Troposfera',c:'#b0561a',o:'#7ec8ff',ob:'Gotas de metano',f:'Troposfera: ≈94 K y ≈1,5 bar. Aquí llueve metano.',s:['CH₄','C₂H₆','N₂']}];
+let st='idle',alt=1000,px=W/2,tx=W/2,en=100,ns=0,obs=[],dots=[],tm=0,inv=0,pl=-1,ban='',bt=0,last=0,got=new Set(),best=0,hits=0;
+try{best=+localStorage.getItem('tb')||0}catch(e){}
+const lay=()=>alt>500?0:alt>300?1:alt>40?2:3;
+function start(){alt=1000;px=tx=W/2;en=100;ns=0;obs=[];got=new Set();tm=.5;inv=0;pl=-1;bt=0;dots=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.6+.4}));st='run';last=performance.now();$('#ov').hidden=true;requestAnimationFrame(loop)}
+function end(ok){st='end';const sc=ns*10+(ok?Math.round(en):0);let nb=false;if(sc>best){best=sc;nb=true;try{localStorage.setItem('tb',best)}catch(e){}}
+$('#ot').textContent=ok?'¡Aterrizaste en Shangri-La!':'La sonda se quedó sin energía';
+$('#op').innerHTML=`${ok?'':'Llegaste a '+Math.round(alt)+' km de altitud.<br>'}Puntos: <b>${sc}</b>${nb?' (¡récord!)':''}<br>Mejor: ${best}<br>Moléculas: ${got.size?[...got].join(', '):'ninguna'}`;
+$('#go').textContent='Jugar de nuevo';$('#ov').hidden=false}
+function spawn(){const l=lay(),L=LA[l],px0=30+Math.random()*(W-60);
+ if(Math.random()<.25)obs.push({k:1,x:px0,y:-30,r:16,t:L.s[Math.random()*3|0]});else obs.push({k:0,x:px0,y:-30,r:16+Math.random()*13,o:L.o,vx:l>0&&Math.random()<.4?(Math.random()<.5?-1:1)*(40+Math.random()*50):0})}
+function wrap(t,n){const w=t.split(' ');let a=[''];w.forEach(s=>{if((a[a.length-1]+' '+s).length>n)a.push(s);else a[a.length-1]=(a[a.length-1]+' '+s).trim()});return a}
+function draw(){const l=lay(),L=LA[l];x.fillStyle=L.c;x.fillRect(0,0,W,H);
+ x.fillStyle='#ffffff55';dots.forEach(d=>{x.beginPath();x.arc(d.x,d.y,d.r,0,7);x.fill()});
+ obs.forEach(o=>{if(o.k){x.strokeStyle='#fff';x.lineWidth=2;x.fillStyle='#ff8a2b55';x.beginPath();x.arc(o.x,o.y,o.r,0,7);x.fill();x.stroke();x.fillStyle='#fff';x.font='8px "Press Start 2P",monospace';x.textAlign='center';x.fillText(o.t,o.x,o.y+4)}else{x.save();x.shadowColor=o.o;x.shadowBlur=14;x.fillStyle=o.o;x.globalAlpha=.9;x.beginPath();x.arc(o.x,o.y,o.r,0,7);x.fill();x.restore()}});
+ if(!(inv>0&&Math.floor(inv*10)%2)){x.fillStyle='#eee';x.fillRect(px-9,PY-6,18,12);x.fillStyle='#ff8a2b';x.fillRect(px-3,PY-2,6,4);x.strokeStyle='#fffc';x.lineWidth=2;[[-16,-10],[16,-10],[-16,10],[16,10]].forEach(([a,b])=>{x.beginPath();x.moveTo(px+a/2,PY+b/2);x.lineTo(px+a,PY+b);x.stroke();x.beginPath();x.ellipse(px+a,PY+b,8,2.5,0,0,7);x.stroke()})}
+ x.fillStyle='#000a';x.fillRect(8,8,W-16,34);x.fillStyle='#ffffff30';x.fillRect(14,14,100,8);x.fillStyle=en>40?'#6fe39a':'#ff5a4a';x.fillRect(14,14,en,8);
+ x.fillStyle='#fff';x.font='8px "Press Start 2P",monospace';x.textAlign='left';x.fillText('Energía',14,36);x.textAlign='right';x.fillText(L.n+' · '+Math.max(0,Math.round(alt))+' km · ✦'+ns,W-14,22);x.fillText(L.ob,W-14,36);
+ if(bt>0){const a=wrap(LA[pl].f,38);x.globalAlpha=Math.min(1,bt);x.fillStyle='#000c';x.fillRect(16,70,W-32,14+a.length*16);x.fillStyle='#ffd9b0';x.textAlign='center';a.forEach((t,i)=>x.fillText(t,W/2,88+i*16));x.globalAlpha=1}}
+function loop(t){if(st!=='run')return;const dt=Math.min(.05,(t-last)/1000);last=t;
+ alt-=1000/55*dt;if(alt<=0){alt=0;draw();end(true);return}
+ const l=lay();if(l!==pl){pl=l;bt=3.2}bt-=dt;inv-=dt;
+ const v=230+(1000-alt)*.22;tm-=dt;if(tm<=0){spawn();tm=.52-(1000-alt)/1000*.24}
+ px+=(tx-px)*Math.min(1,dt*10);dots.forEach(d=>{d.y-=v*dt*.15;if(d.y<0){d.y=H;d.x=Math.random()*W}});
+ obs.forEach(o=>{o.y+=v*dt;if(o.vx){o.x+=o.vx*dt;if(o.x<20||o.x>W-20)o.vx*=-1}});
+ obs=obs.filter(o=>{if(o.y>H+40)return false;const dx=o.x-px,dy=o.y-PY;if(dx*dx+dy*dy<(o.r+12)**2){if(o.k){ns++;got.add(o.t);return false}if(inv<=0){en-=34;inv=1}}return true});
+ draw();if(en<=0){en=0;draw();end(false);return}requestAnimationFrame(loop)}
+function mv(e){const r=C.getBoundingClientRect();tx=Math.max(14,Math.min(W-14,(e.clientX-r.left)/r.width*W))}
+C.addEventListener('pointerdown',mv);C.addEventListener('pointermove',mv);
+addEventListener('keydown',e=>{if(e.key==='ArrowLeft')tx=Math.max(14,tx-50);if(e.key==='ArrowRight')tx=Math.min(W-14,tx+50)});
+$('#go').onclick=start;
+dots=Array.from({length:40},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.6+.4}));draw();document.fonts&&document.fonts.load('8px "Press Start 2P"').then(draw);
+</script>
+</body>
+</html>
